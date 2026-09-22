@@ -1147,31 +1147,24 @@ async def _send_invoice_msg(send_target: Message, user, nick: str, pack_kind: st
 
 
 async def _offer_payment(send_target: Message, state: FSMContext, user):
-    """send_target is any Message we can call .answer(...) on (it also
-    carries .bot and .chat.id, which aiogram Message objects always have)."""
     data = await state.get_data()
+
     paths = data.get("paths") or []
     nick = data.get("nick", "pack")
     pack_kind = data.get("pack_kind", "emoji")
     title = data.get("title")
-    kind = data.get("kind", "name")
 
-    if is_free_user(user.id):
-        await _finalize_pack(send_target.bot, send_target.chat.id, paths, nick, pack_kind, user=user, title=title)
-        await state.clear()
-        return
+    await _finalize_pack(
+        send_target.bot,
+        send_target.chat.id,
+        paths,
+        nick,
+        pack_kind,
+        user=user,
+        title=title,
+    )
 
-    credits = get_credits(user.id)
-    if credits > 0:
-        unit_price = load_price(kind)
-        await send_target.answer(
-            "Qanday to'laymiz?", reply_markup=payment_choice_keyboard(unit_price * (len(paths) or 1), credits),
-        )
-        return
-
-    await _send_invoice_msg(send_target, user, nick, pack_kind, kind, count=len(paths))
-
-
+    await state.clear()
 @router.callback_query(F.data.startswith("packtype:"))
 async def choose_pack_type(callback: CallbackQuery, state: FSMContext):
     pack_kind = callback.data.split(":")[1]
@@ -1201,14 +1194,10 @@ async def pay_with_credit(callback: CallbackQuery, state: FSMContext):
 
 @router.callback_query(F.data == "pay:stars")
 async def pay_with_stars(callback: CallbackQuery, state: FSMContext):
-    data = await state.get_data()
-    paths = data.get("paths") or []
-    nick = data.get("nick", "pack")
-    pack_kind = data.get("pack_kind", "emoji")
-    kind = data.get("kind", "name")
-    await _send_invoice_msg(callback.message, callback.from_user, nick, pack_kind, kind, count=len(paths))
-    await callback.answer()
-
+    await callback.answer(
+        "Bu botda hamma xizmatlar bepul.",
+        show_alert=True
+    )
 
 @router.pre_checkout_query()
 async def process_pre_checkout(pre_checkout_query: PreCheckoutQuery):
