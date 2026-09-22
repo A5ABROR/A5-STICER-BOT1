@@ -1916,11 +1916,53 @@ async def errors_handler(event) -> bool:
     return True
 
 
+async def _render_http_handler(reader, writer):
+    try:
+        await reader.read(1024)
+
+        response = (
+            "HTTP/1.1 200 OK\r\n"
+            "Content-Type: text/plain; charset=utf-8\r\n"
+            "Content-Length: 2\r\n"
+            "Connection: close\r\n"
+            "\r\n"
+            "OK"
+        )
+
+        writer.write(response.encode())
+        await writer.drain()
+    except Exception:
+        pass
+    finally:
+        writer.close()
+        try:
+            await writer.wait_closed()
+        except Exception:
+            pass
+
+
 async def main():
     bot = Bot(token=BOT_TOKEN)
     dp = Dispatcher(storage=MemoryStorage())
     dp.include_router(router)
-    await dp.start_polling(bot)
+
+    port = int(os.environ.get("PORT", "10000"))
+
+    http_server = await asyncio.start_server(
+        _render_http_handler,
+        "0.0.0.0",
+        port,
+    )
+
+    try:
+        await asyncio.gather(
+            dp.start_polling(bot),
+            http_server.serve_forever(),
+        )
+    finally:
+        http_server.close()
+        await http_server.wait_closed()
+        await bot.session.close()
 
 
 _LOCK_PATH = os.path.join(os.path.dirname(__file__), "sonnet.lock")
